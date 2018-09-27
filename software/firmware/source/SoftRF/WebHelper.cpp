@@ -247,7 +247,7 @@ void handleSettings() {
   offset += len;
   size -= len;
 
-  /* SoC specific part */
+  /* SoC specific part 1 */
   if (SoC->id == SOC_ESP32) {
     snprintf_P ( offset, size,
       PSTR("\
@@ -304,9 +304,35 @@ void handleSettings() {
 <select name='nmea_out'>\
 <option %s value='%d'>Off</option>\
 <option %s value='%d'>Serial</option>\
-<option %s value='%d'>UDP</option>\
+<option %s value='%d'>UDP</option>"),
+  (!settings->nmea_g ? "checked" : "") , (settings->nmea_g ? "checked" : ""),
+  (!settings->nmea_p ? "checked" : "") , (settings->nmea_p ? "checked" : ""),
+  (!settings->nmea_l ? "checked" : "") , (settings->nmea_l ? "checked" : ""),
+  (settings->nmea_out == NMEA_OFF ? "selected" : ""), NMEA_OFF,
+  (settings->nmea_out == NMEA_UART ? "selected" : ""), NMEA_UART,
+  (settings->nmea_out == NMEA_UDP ? "selected" : ""), NMEA_UDP);
+
+  len = strlen(offset);
+  offset += len;
+  size -= len;
+
+  /* SoC specific part 2 */
+  if (SoC->id == SOC_ESP32) {
+    snprintf_P ( offset, size,
+      PSTR("\
 <!-- <option %s value='%d'>TCP</option> -->\
-<option %s value='%d'>Bluetooth</option>\
+<option %s value='%d'>Bluetooth</option>"),
+    (settings->nmea_out == NMEA_TCP ? "selected" : ""), NMEA_TCP,
+    (settings->nmea_out == NMEA_BLUETOOTH ? "selected" : ""), NMEA_BLUETOOTH);
+
+    len = strlen(offset);
+    offset += len;
+    size -= len;
+  }
+
+  /* Common part 4 */
+  snprintf_P ( offset, size,
+    PSTR("\
 </select>\
 </td>\
 </tr>\
@@ -316,8 +342,30 @@ void handleSettings() {
 <select name='gdl90'>\
 <option %s value='%d'>Off</option>\
 <option %s value='%d'>Serial</option>\
-<option %s value='%d'>UDP</option>\
-<option %s value='%d'>Bluetooth</option>\
+<option %s value='%d'>UDP</option>"),
+  (settings->gdl90 == GDL90_OFF ? "selected" : ""), GDL90_OFF,
+  (settings->gdl90 == GDL90_UART ? "selected" : ""), GDL90_UART,
+  (settings->gdl90 == GDL90_UDP ? "selected" : ""), GDL90_UDP);
+
+  len = strlen(offset);
+  offset += len;
+  size -= len;
+
+  /* SoC specific part 3 */
+  if (SoC->id == SOC_ESP32) {
+    snprintf_P ( offset, size,
+      PSTR("\
+<option %s value='%d'>Bluetooth</option>"),
+    (settings->gdl90 == GDL90_BLUETOOTH ? "selected" : ""), GDL90_BLUETOOTH);
+
+    len = strlen(offset);
+    offset += len;
+    size -= len;
+  }
+
+  /* Common part 5 */
+  snprintf_P ( offset, size,
+    PSTR("\
 </select>\
 </td>\
 </tr>\
@@ -326,8 +374,29 @@ void handleSettings() {
 <td align=right>\
 <select name='d1090'>\
 <option %s value='%d'>Off</option>\
-<option %s value='%d'>Serial</option>\
-<option %s value='%d'>Bluetooth</option>\
+<option %s value='%d'>Serial</option>"),
+  (settings->d1090 == D1090_OFF ? "selected" : ""), D1090_OFF,
+  (settings->d1090 == D1090_UART ? "selected" : ""), D1090_UART);
+
+  len = strlen(offset);
+  offset += len;
+  size -= len;
+
+  /* SoC specific part 4 */
+  if (SoC->id == SOC_ESP32) {
+    snprintf_P ( offset, size,
+      PSTR("\
+<option %s value='%d'>Bluetooth</option>"),
+    (settings->d1090 == D1090_BLUETOOTH ? "selected" : ""), D1090_BLUETOOTH);
+
+    len = strlen(offset);
+    offset += len;
+    size -= len;
+  }
+
+  /* Common part 6 */
+  snprintf_P ( offset, size,
+    PSTR("\
 </select>\
 </td>\
 </tr>\
@@ -350,21 +419,6 @@ void handleSettings() {
 </form>\
 </body>\
 </html>"),
-  (!settings->nmea_g ? "checked" : "") , (settings->nmea_g ? "checked" : ""),
-  (!settings->nmea_p ? "checked" : "") , (settings->nmea_p ? "checked" : ""),
-  (!settings->nmea_l ? "checked" : "") , (settings->nmea_l ? "checked" : ""),
-  (settings->nmea_out == NMEA_OFF ? "selected" : ""), NMEA_OFF,
-  (settings->nmea_out == NMEA_UART ? "selected" : ""), NMEA_UART,
-  (settings->nmea_out == NMEA_UDP ? "selected" : ""), NMEA_UDP,
-  (settings->nmea_out == NMEA_TCP ? "selected" : ""), NMEA_TCP,
-  (settings->nmea_out == NMEA_BLUETOOTH ? "selected" : ""), NMEA_BLUETOOTH,
-  (settings->gdl90 == GDL90_OFF ? "selected" : ""), GDL90_OFF,
-  (settings->gdl90 == GDL90_UART ? "selected" : ""), GDL90_UART,
-  (settings->gdl90 == GDL90_UDP ? "selected" : ""), GDL90_UDP,
-  (settings->gdl90 == GDL90_BLUETOOTH ? "selected" : ""), GDL90_BLUETOOTH,
-  (settings->d1090 == D1090_OFF ? "selected" : ""), D1090_OFF,
-  (settings->d1090 == D1090_UART ? "selected" : ""), D1090_UART,
-  (settings->d1090 == D1090_BLUETOOTH ? "selected" : ""), D1090_BLUETOOTH,
   (!settings->stealth ? "checked" : "") , (settings->stealth ? "checked" : ""),
   (!settings->no_track ? "checked" : "") , (settings->no_track ? "checked" : "")
   );
@@ -435,7 +489,7 @@ void handleRoot() {
     <td align=right><table><tr>\
      <th align=left>Tx&nbsp;&nbsp;</th><td align=right>%u</td>\
      <th align=left>&nbsp;&nbsp;&nbsp;&nbsp;Rx&nbsp;&nbsp;</th><td align=right>%u</td>\
-   </tr></table>\</td></tr>\
+   </tr></table></td></tr>\
  </table>\
  <h2 align=center>Most recent GNSS fix</h2>\
  <table width=100%%>\
@@ -524,7 +578,7 @@ void handleInput() {
   snprintf_P ( Input_temp, 1400,
 PSTR("<html>\
 <head>\
-<meta http-equiv='refresh' content='15; url=/'/>\
+<meta http-equiv='refresh' content='15; url=/'>\
 <meta name='viewport' content='width=device-width, initial-scale=1'>\
 <title>SoftRF Settings</title>\
 </head>\
@@ -550,7 +604,7 @@ PSTR("<html>\
 <tr><th align=left>No track</th><td align=right>%s</td></tr>\
 </table>\
 <hr>\
-  <p align=center><h1 align=center>Restart is in progress... Please, wait!</h1>\<p>\
+  <p align=center><h1 align=center>Restart is in progress... Please, wait!</h1></p>\
 </body>\
 </html>"),
   settings->mode, settings->rf_protocol, settings->band,
