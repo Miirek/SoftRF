@@ -31,6 +31,10 @@
 #include "WiFiHelper.h"
 #include "TrafficHelper.h"
 
+#if defined(ENABLE_AHRS)
+#include "AHRSHelper.h"
+#endif /* ENABLE_AHRS */
+
 #define ADDR_TO_HEX_STR(s, c) (s += ((c) < 0x10 ? "0" : "") + String((c), HEX))
 
 static GDL90_Msg_HeartBeat_t HeartBeat;
@@ -81,7 +85,7 @@ const GDL90_Msg_FF_ID_t msgFFid = {
 #endif
 
 /* convert a signed latitude to 2s complement ready for 24-bit packing */
-uint32_t makeLatitude(float latitude)
+static uint32_t makeLatitude(float latitude)
 {
     int32_t int_lat;
 
@@ -103,7 +107,7 @@ uint32_t makeLatitude(float latitude)
 }
 
 /* convert a signed longitude to 2s complement ready for 24-bit packing */
-uint32_t makeLongitude(float longitude)
+static uint32_t makeLongitude(float longitude)
 {
     int32_t int_lon;
 
@@ -125,12 +129,12 @@ uint32_t makeLongitude(float longitude)
 }
 
 
-uint32_t pack24bit(uint32_t num)
+static uint32_t pack24bit(uint32_t num)
 {
   return( ((num & 0xff0000) >> 16) | (num & 0x00ff00) | ((num & 0xff) << 16) );
 }
 
-uint16_t calcFCS(uint8_t msg_id, uint8_t *msg, int size)
+uint16_t GDL90_calcFCS(uint8_t msg_id, uint8_t *msg, int size)
 {
   uint16_t crc16 = 0x0000;  /* seed value */
 
@@ -144,7 +148,7 @@ uint16_t calcFCS(uint8_t msg_id, uint8_t *msg, int size)
   return(crc16);
 }
 
-uint8_t *EscapeFilter(uint8_t *buf, uint8_t *p, int size)
+uint8_t *GDL90_EscapeFilter(uint8_t *buf, uint8_t *p, int size)
 {
   while (size--) {
     if (*p != 0x7D && *p != 0x7E) {
@@ -158,7 +162,7 @@ uint8_t *EscapeFilter(uint8_t *buf, uint8_t *p, int size)
   return (buf);
 }
 
-void *msgHeartbeat()
+static void *msgHeartbeat()
 {
   time_t ts = elapsedSecsToday(now());
 
@@ -188,7 +192,7 @@ void *msgHeartbeat()
   return (&HeartBeat);
 }
 
-void *msgType10and20(ufo_t *aircraft)
+static void *msgType10and20(ufo_t *aircraft)
 {
   int altitude;
 
@@ -275,7 +279,7 @@ void *msgType10and20(ufo_t *aircraft)
   return (&Traffic);
 }
 
-void *msgOwnershipGeometricAltitude(ufo_t *aircraft)
+static void *msgOwnershipGeometricAltitude(ufo_t *aircraft)
 {
   uint16_t vfom = 0x000A;
 
@@ -294,11 +298,12 @@ void *msgOwnershipGeometricAltitude(ufo_t *aircraft)
   return (&GeometricAltitude);
 }
 
-size_t makeHeartbeat(uint8_t *buf)
+static size_t makeHeartbeat(uint8_t *buf)
 {
   uint8_t *ptr = buf;
   uint8_t *msg = (uint8_t *) msgHeartbeat();
-  uint16_t fcs = calcFCS(GDL90_HEARTBEAT_MSG_ID, msg, sizeof(GDL90_Msg_HeartBeat_t));
+  uint16_t fcs = GDL90_calcFCS(GDL90_HEARTBEAT_MSG_ID, msg,
+                               sizeof(GDL90_Msg_HeartBeat_t));
   uint8_t fcs_lsb, fcs_msb;
   
   fcs_lsb = fcs        & 0xFF;
@@ -306,19 +311,19 @@ size_t makeHeartbeat(uint8_t *buf)
 
   *ptr++ = 0x7E; /* Start flag */
   *ptr++ = GDL90_HEARTBEAT_MSG_ID;
-  ptr = EscapeFilter(ptr, msg, sizeof(GDL90_Msg_HeartBeat_t));
-  ptr = EscapeFilter(ptr, &fcs_lsb, 1);
-  ptr = EscapeFilter(ptr, &fcs_msb, 1);
+  ptr = GDL90_EscapeFilter(ptr, msg, sizeof(GDL90_Msg_HeartBeat_t));
+  ptr = GDL90_EscapeFilter(ptr, &fcs_lsb, 1);
+  ptr = GDL90_EscapeFilter(ptr, &fcs_msb, 1);
   *ptr++ = 0x7E; /* Stop flag */
 
   return(ptr-buf);
 }
 
-size_t makeType10and20(uint8_t *buf, uint8_t id, ufo_t *aircraft)
+static size_t makeType10and20(uint8_t *buf, uint8_t id, ufo_t *aircraft)
 {
   uint8_t *ptr = buf;
   uint8_t *msg = (uint8_t *) msgType10and20(aircraft);
-  uint16_t fcs = calcFCS(id, msg, sizeof(GDL90_Msg_Traffic_t));
+  uint16_t fcs = GDL90_calcFCS(id, msg, sizeof(GDL90_Msg_Traffic_t));
   uint8_t fcs_lsb, fcs_msb;
   
   fcs_lsb = fcs        & 0xFF;
@@ -326,19 +331,20 @@ size_t makeType10and20(uint8_t *buf, uint8_t id, ufo_t *aircraft)
 
   *ptr++ = 0x7E; /* Start flag */
   *ptr++ = id;
-  ptr = EscapeFilter(ptr, msg, sizeof(GDL90_Msg_Traffic_t));
-  ptr = EscapeFilter(ptr, &fcs_lsb, 1);
-  ptr = EscapeFilter(ptr, &fcs_msb, 1);
+  ptr = GDL90_EscapeFilter(ptr, msg, sizeof(GDL90_Msg_Traffic_t));
+  ptr = GDL90_EscapeFilter(ptr, &fcs_lsb, 1);
+  ptr = GDL90_EscapeFilter(ptr, &fcs_msb, 1);
   *ptr++ = 0x7E; /* Stop flag */
 
   return(ptr-buf);
 }
 
-size_t makeGeometricAltitude(uint8_t *buf, ufo_t *aircraft)
+static size_t makeGeometricAltitude(uint8_t *buf, ufo_t *aircraft)
 {
   uint8_t *ptr = buf;
   uint8_t *msg = (uint8_t *) msgOwnershipGeometricAltitude(aircraft);
-  uint16_t fcs = calcFCS(GDL90_OWNGEOMALT_MSG_ID, msg, sizeof(GDL90_Msg_OwnershipGeometricAltitude_t));
+  uint16_t fcs = GDL90_calcFCS(GDL90_OWNGEOMALT_MSG_ID, msg,
+                               sizeof(GDL90_Msg_OwnershipGeometricAltitude_t));
   uint8_t fcs_lsb, fcs_msb;
 
   fcs_lsb = fcs        & 0xFF;
@@ -346,9 +352,9 @@ size_t makeGeometricAltitude(uint8_t *buf, ufo_t *aircraft)
 
   *ptr++ = 0x7E; /* Start flag */
   *ptr++ = GDL90_OWNGEOMALT_MSG_ID;
-  ptr = EscapeFilter(ptr, msg, sizeof(GDL90_Msg_OwnershipGeometricAltitude_t));
-  ptr = EscapeFilter(ptr, &fcs_lsb, 1);
-  ptr = EscapeFilter(ptr, &fcs_msb, 1);
+  ptr = GDL90_EscapeFilter(ptr, msg, sizeof(GDL90_Msg_OwnershipGeometricAltitude_t));
+  ptr = GDL90_EscapeFilter(ptr, &fcs_lsb, 1);
+  ptr = GDL90_EscapeFilter(ptr, &fcs_msb, 1);
   *ptr++ = 0x7E; /* Stop flag */
 
   return(ptr-buf);
@@ -356,11 +362,11 @@ size_t makeGeometricAltitude(uint8_t *buf, ufo_t *aircraft)
 
 #if defined(DO_GDL90_FF_EXT)
 
-size_t makeFFid(uint8_t *buf)
+static size_t makeFFid(uint8_t *buf)
 {
   uint8_t *ptr = buf;
   uint8_t *msg = (uint8_t *) &msgFFid;
-  uint16_t fcs = calcFCS(GDL90_FFEXT_MSG_ID, msg, sizeof(GDL90_Msg_FF_ID_t));
+  uint16_t fcs = GDL90_calcFCS(GDL90_FFEXT_MSG_ID, msg, sizeof(GDL90_Msg_FF_ID_t));
   uint8_t fcs_lsb, fcs_msb;
 
   fcs_lsb = fcs        & 0xFF;
@@ -368,9 +374,9 @@ size_t makeFFid(uint8_t *buf)
 
   *ptr++ = 0x7E; /* Start flag */
   *ptr++ = GDL90_FFEXT_MSG_ID;
-  ptr = EscapeFilter(ptr, msg, sizeof(GDL90_Msg_FF_ID_t));
-  ptr = EscapeFilter(ptr, &fcs_lsb, 1);
-  ptr = EscapeFilter(ptr, &fcs_msb, 1);
+  ptr = GDL90_EscapeFilter(ptr, msg, sizeof(GDL90_Msg_FF_ID_t));
+  ptr = GDL90_EscapeFilter(ptr, &fcs_lsb, 1);
+  ptr = GDL90_EscapeFilter(ptr, &fcs_msb, 1);
   *ptr++ = 0x7E; /* Stop flag */
 
   return(ptr-buf);
@@ -422,7 +428,13 @@ void GDL90_Export()
 #if defined(DO_GDL90_FF_EXT)
     size = makeFFid(buf);
     GDL90_Out(buf, size);
-#endif
+
+#if defined(ENABLE_AHRS)
+    size = AHRS_GDL90(buf);
+    GDL90_Out(buf, size);
+#endif /* ENABLE_AHRS */
+
+#endif /* DO_GDL90_FF_EXT */
 
     size = makeOwnershipReport(buf, &ThisAircraft);
     GDL90_Out(buf, size);

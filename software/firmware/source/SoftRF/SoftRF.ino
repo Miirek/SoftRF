@@ -62,6 +62,10 @@
 
 #include "SoftRF.h"
 
+#if defined(ENABLE_AHRS)
+#include "AHRSHelper.h"
+#endif /* ENABLE_AHRS */
+
 #if LOGGER_IS_ENABLED
 #include "LogHelper.h"
 #endif /* LOGGER_IS_ENABLED */
@@ -118,6 +122,9 @@ void setup()
   delay(100);
 
   hw_info.baro = Baro_setup();
+#if defined(ENABLE_AHRS)
+  hw_info.ahrs = AHRS_setup();
+#endif /* ENABLE_AHRS */
   hw_info.display = SoC->Display_setup();
 
   if (settings->mode == SOFTRF_MODE_UAV) {
@@ -209,9 +216,6 @@ void loop()
   // battery status LED
   LED_loop();
 
-  // Handle Air Connect
-  NMEA_loop();
-
   // Handle DNS
   WiFi_loop();
 
@@ -233,6 +237,10 @@ void normal_loop()
   bool success;
 
   Baro_loop();
+
+#if defined(ENABLE_AHRS)
+  AHRS_loop();
+#endif /* ENABLE_AHRS */
 
   PickGNSSFix();
 
@@ -294,6 +302,9 @@ void normal_loop()
     D1090_Export();
     ExportTimeMarker = millis();
   }
+
+  // Handle Air Connect
+  NMEA_loop();
 
   ClearExpired();
 
@@ -417,6 +428,10 @@ void txrx_test_loop()
   baro_end_ms = millis();
 #endif
 
+#if defined(ENABLE_AHRS)
+  AHRS_loop();
+#endif /* ENABLE_AHRS */
+
 #if DEBUG_TIMING
   tx_start_ms = millis();
 #endif
@@ -521,6 +536,9 @@ void txrx_test_loop()
     Serial.println(oled_end_ms);
   }
 #endif
+
+  // Handle Air Connect
+  NMEA_loop();
 
   ClearExpired();
 }
